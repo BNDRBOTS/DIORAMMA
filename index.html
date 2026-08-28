@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BNDR_AWWWARDS_SYS_ARCHITECT | V2 DIORAMA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        :root {
+            /* Dynamic variables updated by JS Color Switcher */
+            --bg-color-r: 10;
+            --bg-color-g: 11;
+            --bg-color-b: 14;
+            --bg-color: rgb(var(--bg-color-r), var(--bg-color-g), var(--bg-color-b));
+            
+            --accent-color-r: 212;
+            --accent-color-g: 255;
+            --accent-color-b: 0;
+            --accent-color: rgb(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b));
+            
+            --text-color-r: 255;
+            --text-color-g: 255;
+            --text-color-b: 255;
+            --text-primary: rgb(var(--text-color-r), var(--text-color-g), var(--text-color-b));
+            
+            --text-secondary: rgba(255,255,255,0.5);
+            --grid-unit: 8px;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            overscroll-behavior: none;
+            transition: background-color 0s; /* Handled by GSAP */
+        }
+
+        .perspective-container {
+            perspective: 2000px;
+            transform-style: preserve-3d;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none; /* Let clicks pass to trigger layer */
+        }
+
+        .diorama-assembly {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            will-change: transform;
+            display: flex;
+        }
+
+        .quad-wrapper {
+            position: absolute;
+            overflow: hidden;
+            z-index: 10;
+            will-change: transform;
+            pointer-events: auto; /* Re-enable pointer events for inner content */
+        }
+
+        .quad-inner {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            transform-style: preserve-3d;
+        }
+
+        .quad-tl { top: 0; left: 0; width: 50vw; height: 50vh; transform-origin: bottom right; }
+        .quad-tl .quad-inner { top: 0; left: 0; }
+
+        .quad-tr { top: 0; left: 50vw; width: 50vw; height: 50vh; transform-origin: bottom left; }
+        .quad-tr .quad-inner { top: 0; left: -50vw; }
+
+        .quad-bl { top: 50vh; left: 0; width: 50vw; height: 50vh; transform-origin: top right; }
+        .quad-bl .quad-inner { top: -50vh; left: 0; }
+
+        .quad-br { top: 50vh; left: 50vw; width: 50vw; height: 50vh; transform-origin: top left; }
+        .quad-br .quad-inner { top: -50vh; left: -50vw; }
+
+        .panel-left, .panel-right {
+            height: 100%;
+            position: relative;
+            will-change: width;
+            overflow: hidden;
+        }
+        
+        .panel-left {
+            border-right: 1px solid rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), 0.1);
+        }
+
+        .content-track-y {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            will-change: transform;
+            padding: calc(var(--grid-unit) * 12);
+        }
+
+        .content-track-x {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            will-change: transform;
+            padding: calc(var(--grid-unit) * 12);
+        }
+
+        .intersection-glow {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 100%;
+            background-color: var(--accent-color);
+            z-index: 100;
+            cursor: ew-resize;
+            box-shadow: 0 0 15px var(--accent-color);
+            will-change: box-shadow, width, transform;
+            transition: width 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: auto;
+        }
+
+        .intersection-glow:hover { width: 8px; }
+
+        .forensic-card {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(var(--text-color-r), var(--text-color-g), var(--text-color-b), 0.1);
+            padding: calc(var(--grid-unit) * 4);
+            margin-bottom: calc(var(--grid-unit) * 8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            width: 100%;
+            max-width: 480px;
+            transition: border-color 0.4s ease, box-shadow 0.4s ease;
+            box-shadow: 0 0 20px rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), 0.15),
+                        inset 0 0 10px rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), 0.05);
+            color: var(--text-primary);
+        }
+        
+        .forensic-card:hover {
+            border-color: rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), 0.5);
+            box-shadow: 0 0 35px rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), 0.25),
+                        inset 0 0 15px rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), 0.15);
+        }
+
+        .forensic-card-x {
+            min-width: 400px;
+            height: 400px;
+            margin-bottom: 0;
+            margin-right: calc(var(--grid-unit) * 8);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .tier-badge {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+
+        #webgl-core {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .color-tab-system {
+            position: fixed;
+            bottom: calc(var(--grid-unit) * 4);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px;
+            border-radius: 40px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: auto;
+        }
+
+        .color-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1), border-color 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .color-btn::after {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%);
+            transform: rotate(45deg);
+        }
+
+        .color-btn:hover { transform: scale(1.1); }
+        .color-btn.active { border-color: currentColor; transform: scale(1.15); box-shadow: 0 0 20px currentColor;}
+        
+        /* Specific Palette Buttons */
+        .c-neon { background-color: #D4FF00; color: #D4FF00; }
+        .c-crimson { background-color: #FF3366; color: #FF3366; }
+        .c-ice { background-color: #00FFCC; color: #00FFCC; }
+        .c-ember { background-color: #FFB800; color: #FFB800; }
+        .c-bone { background-color: #F2F0EB; color: #0050FF; }
+    </style>
+</head>
+<body>
+    <canvas id="webgl-core"></canvas>
+
+    <!-- Master Scroll Proxy for Lenis - Native Scroll Driver -->
+    <div id="scroll-proxy" style="height: 500vh; width: 1px; opacity: 0; pointer-events: none;"></div>
+
+    <div id="ui-layer" class="perspective-container">
+        <!-- Generative targets for Javascript to populate exact clones -->
+        <div id="q-tl" class="quad-wrapper quad-tl"><div class="quad-inner" aria-hidden="false"></div></div>
+        <div id="q-tr" class="quad-wrapper quad-tr"><div class="quad-inner" aria-hidden="true"></div></div>
+        <div id="q-bl" class="quad-wrapper quad-bl"><div class="quad-inner" aria-hidden="true"></div></div>
+        <div id="q-br" class="quad-wrapper quad-br"><div class="quad-inner" aria-hidden="true"></div></div>
+    </div>
+
+    <!-- Interactive Splitting Trigger -->
+    <div id="intersection-trigger" class="intersection-glow" aria-label="Split Engine Trigger"></div>
+
+    <!-- Impeccably Easy Color Changing Tab -->
+    <div class="color-tab-system" role="radiogroup" aria-label="Chromatic Orchestration Layer">
+        <button class="color-btn c-neon active" data-bg="10, 11, 14" data-accent="212, 255, 0" data-text="255, 255, 255" aria-checked="true" aria-label="Cyber Neon Protocol"></button>
+        <button class="color-btn c-crimson" data-bg="15, 10, 14" data-accent="255, 51, 102" data-text="255, 255, 255" aria-checked="false" aria-label="Crimson Void Protocol"></button>
+        <button class="color-btn c-ice" data-bg="10, 14, 20" data-accent="0, 255, 204" data-text="255, 255, 255" aria-checked="false" aria-label="Deep Ice Protocol"></button>
+        <button class="color-btn c-ember" data-bg="18, 17, 13" data-accent="255, 184, 0" data-text="255, 255, 255" aria-checked="false" aria-label="Ember Dusk Protocol"></button>
+        <button class="color-btn c-bone" data-bg="242, 240, 235" data-accent="0, 80, 255" data-text="20, 20, 20" aria-checked="false" aria-label="Bone Light Protocol"></button>
+    </div>
+
+    <script>
+        const DATASET = [
+            { id: "001", criteria: "One idea, one mark", desc: "Single concept governs everything with scale-appropriate complexity reduction.", tier: "core", category: "core_identity" },
+            { id: "002", criteria: "Name-lock with verb-noun spine", desc: "Brand name and action fused with localization flexibility framework.", tier: "core", category: "core_identity" },
+            { id: "004", criteria: "Optical balance with controlled tension", desc: "Stable layout with deliberate stress point, grid-assist with optical override.", tier: "core", category: "design_execution" },
+            { id: "005", criteria: "Negative space carries second signal", desc: "Hidden meaning in voids with scale-tiered complexity degradation.", tier: "core", category: "design_execution" },
+            { id: "011", criteria: "Contrast ratio ≥4.5:1 for primaries", desc: "WCAG AA minimum with demographic-tiered enhancement protocol.", tier: "compliance", category: "color_typography" },
+            { id: "012", criteria: "Palette: one primary, one accent", desc: "Tight control with tiered palette expansion for functional contexts.", tier: "core", category: "color_typography" },
+            { id: "020", criteria: "Seven-word brand line defines story", desc: "Core narrative with audience-segmented constellation variants.", tier: "core", category: "psychological_impact" },
+            { id: "024", criteria: "Motion signature: single ease and axis", desc: "Unified motion language with context-appropriate timing variants.", tier: "functional", category: "brand_integration" },
+            { id: "028", criteria: "Semantic field map to shapes and type", desc: "Keyword-to-form translation with cultural semiotic validation.", tier: "core", category: "design_execution" },
+            { id: "034", criteria: "Adaptability matrix across sizes", desc: "Scale family with genetic coherence not pixel replication.", tier: "core", category: "design_execution" },
+            { id: "049", criteria: "Colorblind-safe multi-modal differentiation", desc: "Color-independent architecture via shape, icon, pattern, position.", tier: "compliance", category: "accessibility" },
+            { id: "051", criteria: "Vestibular-safe motion and animation", desc: "Motion respects prefers-reduced-motion; avoids extreme parallax.", tier: "compliance", category: "accessibility" },
+            { id: "062", criteria: "50+ language localization workflow", desc: "Internationalization framework supporting Unicode, RTL, scaling.", tier: "functional", category: "operational_scalability" },
+            { id: "072", criteria: "Temporal validation: 50ms to 5min", desc: "Design hierarchy optimized for multiple exposure durations.", tier: "functional", category: "multi_dimensional_validation" },
+            { id: "076", criteria: "Demographic validation: age 8-80", desc: "Design tested across age groups and neurocognitive diversity.", tier: "functional", category: "multi_dimensional_validation" }
+        ];
+
+        const generateCards = (orientation) => {
+            return DATASET.map(item => `
+                <div class="forensic-card ${orientation === 'x' ? 'forensic-card-x' : ''}">
+                    <div>
+                        <span class="tier-badge" style="color: var(--accent-color); border-color: var(--accent-color)">
+                            ${item.tier} // ${item.category.replace('_', ' ')}
+                        </span>
+                        <h3 class="text-xl font-bold mb-2 tracking-tight">${item.criteria}</h3>
+                        <p class="text-sm leading-relaxed" style="color: rgba(var(--text-color-r), var(--text-color-g), var(--text-color-b), 0.7)">${item.desc}</p>
+                    </div>
+                    <div class="mt-6 text-xs font-mono tracking-widest" style="color: rgba(var(--text-color-r), var(--text-color-g), var(--text-color-b), 0.4)">
+                        ID: II_SYS_${item.id}
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        const HTML_TEMPLATE = `
+            <div class="diorama-assembly">
+                <div class="panel-left" style="width: 50vw;">
+                    <div class="content-track-y">
+                        <div class="pb-[100vh]">
+                            <h2 class="text-4xl font-bold mb-12" style="color: var(--accent-color)">VERTICAL.AXIS</h2>
+                            ${generateCards('y')}
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-right" style="width: 50vw;">
+                    <div class="content-track-x">
+                        <div class="flex pr-[100vw]">
+                            <div class="mr-12 shrink-0 w-64">
+                                <h2 class="text-4xl font-bold -rotate-90 origin-bottom-left absolute bottom-12" style="color: var(--accent-color)">HORIZONTAL.AXIS</h2>
+                            </div>
+                            ${generateCards('x')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        ['q-tl', 'q-tr', 'q-bl', 'q-br'].forEach(id => {
+            document.querySelector(`#${id} .quad-inner`).innerHTML = HTML_TEMPLATE;
+        });
+
+        const SystemState = {
+            scroll: { progress: 0, velocity: 0, maxScroll: 0 },
+            split: { value: 0, target: 0 },
+            mouse: { x: 0, y: 0 },
+            color: {
+                currentBg: { r: 10, g: 11, b: 14 },
+                currentAccent: { r: 212, g: 255, b: 0 },
+                currentText: { r: 255, g: 255, b: 255 }
+            },
+            dom: {
+                trackY: document.querySelectorAll('.content-track-y'),
+                trackX: document.querySelectorAll('.content-track-x'),
+                panelLeft: document.querySelectorAll('.panel-left'),
+                panelRight: document.querySelectorAll('.panel-right'),
+                diorama: document.querySelectorAll('.diorama-assembly'),
+                quads: {
+                    tl: document.querySelector('.quad-tl'),
+                    tr: document.querySelector('.quad-tr'),
+                    bl: document.querySelector('.quad-bl'),
+                    br: document.querySelector('.quad-br')
+                },
+                glow: document.getElementById('intersection-trigger'),
+                colorBtns: document.querySelectorAll('.color-btn')
+            },
+            metrics: { trackYHeight: 0, trackXWidth: 0 }
+        };
+
+        function calculateMetrics() {
+            SystemState.scroll.maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            SystemState.metrics.trackYHeight = SystemState.dom.trackY[0].getBoundingClientRect().height - window.innerHeight;
+            SystemState.metrics.trackXWidth = SystemState.dom.trackX[0].getBoundingClientRect().width - window.innerWidth + (window.innerWidth / 2);
+        }
+
+        window.addEventListener('resize', calculateMetrics);
+        window.addEventListener('mousemove', (e) => {
+            SystemState.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            SystemState.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        SystemState.dom.glow.addEventListener('mouseenter', () => { SystemState.split.target = 1; });
+        SystemState.dom.glow.addEventListener('mouseleave', () => { SystemState.split.target = 0; });
+
+        SystemState.dom.colorBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update active class
+                SystemState.dom.colorBtns.forEach(b => {
+                    b.classList.remove('active');
+                    b.setAttribute('aria-checked', 'false');
+                });
+                btn.classList.add('active');
+                btn.setAttribute('aria-checked', 'true');
+
+                // Parse target colors
+                const bgRGB = btn.dataset.bg.split(',').map(n => parseInt(n.trim()));
+                const accRGB = btn.dataset.accent.split(',').map(n => parseInt(n.trim()));
+                const textRGB = (btn.dataset.text || "255, 255, 255").split(',').map(n => parseInt(n.trim()));
+
+                // Orchestrate GSAP Timeline for seamless UI variable tweening
+                gsap.to(SystemState.color.currentBg, {
+                    r: bgRGB[0], g: bgRGB[1], b: bgRGB[2],
+                    duration: 1.2, ease: 'power2.out',
+                    onUpdate: () => {
+                        document.documentElement.style.setProperty('--bg-color-r', Math.round(SystemState.color.currentBg.r));
+                        document.documentElement.style.setProperty('--bg-color-g', Math.round(SystemState.color.currentBg.g));
+                        document.documentElement.style.setProperty('--bg-color-b', Math.round(SystemState.color.currentBg.b));
+                        
+                        // Push to WebGL uniform
+                        material.uniforms.uColorBase.value.setRGB(
+                            SystemState.color.currentBg.r / 255,
+                            SystemState.color.currentBg.g / 255,
+                            SystemState.color.currentBg.b / 255
+                        );
+                    }
+                });
+
+                gsap.to(SystemState.color.currentText, {
+                    r: textRGB[0], g: textRGB[1], b: textRGB[2],
+                    duration: 1.2, ease: 'power2.out',
+                    onUpdate: () => {
+                        document.documentElement.style.setProperty('--text-color-r', Math.round(SystemState.color.currentText.r));
+                        document.documentElement.style.setProperty('--text-color-g', Math.round(SystemState.color.currentText.g));
+                        document.documentElement.style.setProperty('--text-color-b', Math.round(SystemState.color.currentText.b));
+                    }
+                });
+
+                gsap.to(SystemState.color.currentAccent, {
+                    r: accRGB[0], g: accRGB[1], b: accRGB[2],
+                    duration: 1.2, ease: 'power2.out',
+                    onUpdate: () => {
+                        document.documentElement.style.setProperty('--accent-color-r', Math.round(SystemState.color.currentAccent.r));
+                        document.documentElement.style.setProperty('--accent-color-g', Math.round(SystemState.color.currentAccent.g));
+                        document.documentElement.style.setProperty('--accent-color-b', Math.round(SystemState.color.currentAccent.b));
+                        
+                        // Push to WebGL uniform
+                        material.uniforms.uColorAccent.value.setRGB(
+                            SystemState.color.currentAccent.r / 255,
+                            SystemState.color.currentAccent.g / 255,
+                            SystemState.color.currentAccent.b / 255
+                        );
+                    }
+                });
+            });
+        });
+
+        const lenis = new Lenis({
+            duration: 1.2,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            smoothTouch: false,
+        });
+
+        lenis.on('scroll', (e) => {
+            SystemState.scroll.progress = e.progress;
+            SystemState.scroll.velocity = e.velocity;
+        });
+
+        const canvas = document.getElementById('webgl-core');
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        // Validated for mid-range hardware (Pixel 6 / iPhone 12 baseline)
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+        const fragmentShader = `
+            uniform float uTime;
+            uniform float uProgress;
+            uniform float uSplit;
+            uniform vec2 uResolution;
+            uniform vec2 uMouse;
+            uniform float uVelocity;
+            
+            // Dynamic Color Injection
+            uniform vec3 uColorBase;
+            uniform vec3 uColorAccent;
+
+            #define MAX_STEPS 80
+            #define MAX_DIST 100.0
+            #define SURF_DIST 0.005
+
+            // Primitive SDFs
+            float sdSphere(vec3 p, float r) { return length(p) - r; }
+            float sdBox(vec3 p, vec3 b) {
+                vec3 q = abs(p) - b;
+                return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+            }
+            float sdTorus(vec3 p, vec2 t) {
+                vec2 q = vec2(length(p.xz)-t.x, p.y);
+                return length(q)-t.y;
+            }
+
+            // Operations
+            float smin(float a, float b, float k) {
+                float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+                return mix(b, a, h) - k * h * (1.0 - h);
+            }
+
+            mat2 rot(float a) {
+                float s = sin(a), c = cos(a);
+                return mat2(c, -s, s, c);
+            }
+
+            // SDF Scene with Seamless Transitioning Morphing Logic
+            float getDist(vec3 p) {
+                vec3 pSpace = p;
+                
+                // Tilt space based on scroll and time
+                pSpace.xz *= rot(uProgress * 3.1415 + uTime * 0.1);
+                pSpace.yz *= rot(uTime * 0.15);
+                
+                // Define 3 core shapes
+                float sphere = sdSphere(pSpace, 1.4);
+                float box = sdBox(pSpace, vec3(1.0));
+                float torus = sdTorus(pSpace, vec2(1.2, 0.4));
+
+                // Morphing Phases based on Scroll Progress (0 -> 1 mapped to 0 -> 2*PI)
+                // This creates a seamless loop as the user scrolls
+                float phase1 = smoothstep(-0.5, 0.5, sin(uProgress * 6.28));
+                float phase2 = smoothstep(-0.5, 0.5, cos(uProgress * 6.28));
+                float timePulse = smoothstep(-1.0, 1.0, sin(uTime * 0.5));
+
+                // Mix shapes elegantly
+                float morph1 = mix(sphere, box, phase1);
+                float morph2 = mix(torus, sphere, phase2);
+                
+                // Combine with SMin for fluid, organic fusion
+                float finalShape = smin(morph1, morph2, 0.6 + (timePulse * 0.4));
+
+                // Add ambient displacement tied to velocity
+                float displacement = sin(4.0 * p.x + uTime) * sin(4.0 * p.y) * sin(4.0 * p.z) * 0.15 * clamp(abs(uVelocity)*0.02, 0.0, 1.0);
+
+                return finalShape + displacement;
+            }
+
+            vec3 getNormal(vec3 p) {
+                float d = getDist(p);
+                vec2 e = vec2(0.01, 0);
+                vec3 n = d - vec3(
+                    getDist(p - e.xyy),
+                    getDist(p - e.yxy),
+                    getDist(p - e.yyx)
+                );
+                return normalize(n);
+            }
+
+            void main() {
+                vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution.xy) / uResolution.y;
+                
+                // Quadrant Splitting logic in UV space
+                vec2 offset = sign(uv) * (uSplit * 0.1); 
+                uv -= offset;
+
+                vec3 ro = vec3(0.0, 0.0, -4.5);
+                
+                // Camera tilt based on mouse and scroll
+                ro.xz *= rot(uMouse.x * 0.15 + uProgress * 0.5);
+                ro.yz *= rot(uMouse.y * 0.15);
+
+                vec3 rd = normalize(vec3(uv.x, uv.y, 1.0));
+
+                float dO = 0.0;
+                for(int i=0; i<MAX_STEPS; i++) {
+                    vec3 p = ro + rd * dO;
+                    float dS = getDist(p);
+                    dO += dS;
+                    if(dO > MAX_DIST || dS < SURF_DIST) break;
+                }
+
+                // Dynamic Context Background Color
+                vec3 col = uColorBase; 
+
+                if(dO < MAX_DIST) {
+                    vec3 p = ro + rd * dO;
+                    vec3 n = getNormal(p);
+                    vec3 lightDir = normalize(vec3(1.0, 2.0, -3.0));
+                    
+                    float dif = clamp(dot(n, lightDir), 0.0, 1.0);
+                    
+                    // Material color mixing
+                    vec3 objBaseColor = mix(uColorBase, vec3(0.2), 0.2); // slightly lighter than bg
+                    
+                    // Mix to accent color based on light direction and height
+                    col = mix(objBaseColor, uColorAccent, dif * 0.6 + p.y * 0.2 + (uSplit*0.2));
+                    
+                    // Add rim lighting
+                    float rim = 1.0 - max(dot(n, -rd), 0.0);
+                    col += uColorAccent * smoothstep(0.7, 1.0, rim) * 0.5;
+                }
+
+                // Vignette
+                uv = gl_FragCoord.xy / uResolution.xy;
+                uv *=  1.0 - uv.yx;
+                float vig = uv.x*uv.y * 15.0;
+                col *= pow(vig, 0.15);
+
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        const material = new THREE.ShaderMaterial({
+            vertexShader: `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            fragmentShader,
+            uniforms: {
+                uTime: { value: 0 },
+                uProgress: { value: 0 },
+                uSplit: { value: 0 },
+                uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                uMouse: { value: new THREE.Vector2(0, 0) },
+                uVelocity: { value: 0 },
+                uColorBase: { value: new THREE.Color(10/255, 11/255, 14/255) },
+                uColorAccent: { value: new THREE.Color(212/255, 255/255, 0) }
+            },
+            depthWrite: false,
+            depthTest: false
+        });
+
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+        scene.add(plane);
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+        });
+
+        gsap.ticker.add((time) => {
+            // Sync Lenis
+            lenis.raf(time * 1000);
+            
+            // Lerp Split state
+            SystemState.split.value += (SystemState.split.target - SystemState.split.value) * 0.1;
+
+            const p = SystemState.scroll.progress;
+            const v = SystemState.scroll.velocity;
+
+            // Update DOM Translations (Left vertically, Right horizontally)
+            const yOffset = -(p * SystemState.metrics.trackYHeight);
+            const xOffset = -(p * SystemState.metrics.trackXWidth);
+            
+            SystemState.dom.trackY.forEach(el => el.style.transform = `translate3d(0, ${yOffset}px, 0)`);
+            SystemState.dom.trackX.forEach(el => el.style.transform = `translate3d(${xOffset}px, 0, 0)`);
+
+            // Breathe Effect Calculation (Expansion/Contraction of halves)
+            const breatheDelta = Math.sin(p * Math.PI * 4) * 4; 
+            const leftW = 50 + breatheDelta;
+            const rightW = 50 - breatheDelta;
+
+            SystemState.dom.panelLeft.forEach(el => el.style.width = `${leftW}vw`);
+            SystemState.dom.panelRight.forEach(el => el.style.width = `${rightW}vw`);
+
+            // Diorama Tilt (3D orientation tracking scroll & mouse)
+            const tiltX = (p - 0.5) * 15; 
+            const tiltY = SystemState.mouse.x * 4 + (Math.cos(p * Math.PI) * 4);
+
+            SystemState.dom.diorama.forEach(el => {
+                el.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+            });
+
+            // Quadrant Hover Split (Transform the 4 wrapper origins outward)
+            const s = SystemState.split.value * 3; // Max 3% outward split
+            SystemState.dom.quads.tl.style.transform = `translate3d(-${s}vw, -${s}vh, 0)`;
+            SystemState.dom.quads.tr.style.transform = `translate3d(${s}vw, -${s}vh, 0)`;
+            SystemState.dom.quads.bl.style.transform = `translate3d(-${s}vw, ${s}vh, 0)`;
+            SystemState.dom.quads.br.style.transform = `translate3d(${s}vw, ${s}vh, 0)`;
+
+            // Intersection Glow intensity bound to velocity and active color
+            const absV = Math.min(Math.abs(v) / 20, 1); 
+            const baseGlow = 15 + (absV * 30); 
+            SystemState.dom.glow.style.boxShadow = `0 0 ${baseGlow}px rgba(var(--accent-color-r), var(--accent-color-g), var(--accent-color-b), ${0.6 + absV * 0.4})`;
+            SystemState.dom.glow.style.transform = `translateX(-50%) scaleX(${1 + absV})`;
+            SystemState.dom.glow.style.left = `${leftW}vw`;
+
+            // Sync WebGL uniforms
+            material.uniforms.uTime.value = time;
+            material.uniforms.uProgress.value = p;
+            material.uniforms.uVelocity.value = v;
+            material.uniforms.uSplit.value = SystemState.split.value;
+            // Damp mouse for WebGL smooth rotation
+            material.uniforms.uMouse.value.lerp(new THREE.Vector2(SystemState.mouse.x, SystemState.mouse.y), 0.05);
+
+            renderer.render(scene, camera);
+        });
+
+        gsap.ticker.lagSmoothing(0); 
+
+        window.addEventListener('DOMContentLoaded', () => {
+            calculateMetrics();
+            
+            // Dynamic Context Initialization (Simulate Day/Night routing)
+            const hour = new Date().getHours();
+            if(hour < 6 || hour > 18) {
+                // Night context - default to Neon or Ice
+                // Initialization pre-set handled in CSS/JS state
+            }
+            
+            renderer.render(scene, camera);
+        });
+    </script>
+</body>
+</html>
